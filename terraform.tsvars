@@ -1,0 +1,51 @@
+# terraform.tfvars IMPORTANT: REPLACE 
+# "YOUR_ACTUAL_SUBSCRIPTION_ID_GUID_HERE" 
+# with your Azure Subscription GUID
+subscription_id = 
+"YOUR_ACTUAL_SUBSCRIPTION_ID_GUID_HERE" 
+location = "eastus" resource_groups = [
+  "virtinf-rg", "virtinf-rg2", 
+  "Bookmywhip-rg",
+] storage_accounts = [ { name = 
+    "bookmywhipstorage2025" 
+    resource_group = "Bookmywhip-rg"
+  },
+  { name = "forddiag" resource_group = 
+    "Bookmywhip-rg"
+  },
+] cosmos_account_name = 
+"virtinf-cosmos" cosmos_resource_group 
+= "virtinf-rg" eventhub_namespace_name 
+= "virtinf-hub" eventhub_name = 
+"virtinf_hub" # Corrected to underscore 
+based on az list output 
+eventhub_resource_group = "virtinf-rg" 
+cognitive_services = {
+  aidiagexpert = { resource_group = 
+  "Bookmywhip-rg", kind = 
+  "CognitiveServices", sku_name = "S0" 
+  }
+  forddiagdocint1 = { resource_group = 
+  "Bookmywhip-rg", kind = 
+  "CognitiveServices", sku_name = "S0" 
+  }
+  virtinfopenai = { resource_group = 
+  "virtinf-rg", kind = 
+  "CognitiveServices", sku_name = "S0" 
+  }
+  virtinfspeech = { resource_group = 
+  "virtinf-rg", kind = 
+  "CognitiveServices", sku_name = "S0" 
+  }
+}
+key_vault_name = "virtinf-kv" 
+kv_resource_group = "virtinf-rg" 
+acr_name = "virtinfregistry" # 
+**CRUCIAL CORRECTION HERE: Changed from 
+"virtinfacr" to "virtinfregistry"** 
+acr_resource_group = "virtinf-rg" 
+aks_name = "virtinf-aks" 
+aks_resource_group = "virtinf-rg" 
+aks_dns_prefix = "virtinf" search_name 
+= "virtinf-search"
+search_resource_group = "virtinf-rg"

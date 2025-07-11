@@ -1,0 +1,17 @@
+name: legolas
+infra:
+  provider: terraform
+services:
+  backend:
+    project: ./backend
+    language: python
+    host: aks
+    port: 80
+    docker:
+      path: Dockerfile
+      context: .
+    env:
+      - COSMOS_DB_ENDPOINT=${cosmos_endpoint}
+      - AIDIAGEXPERT_ENDPOINT=${cognitive_service_keys["aidiagexpert"].endpoint}
+      - AIDIAGEXPERT_KEY=${cognitive_service_keys["aidiagexpert"].key1}
+      - AZURE_STORAGE_CONNECTION_STRING_1=${storage_accounts["bookmywhipstorage2025"]}
