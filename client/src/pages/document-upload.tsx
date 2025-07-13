@@ -164,25 +164,57 @@ export default function DocumentUpload() {
                     </dl>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-600 dark:text-gray-400 mb-2">Parties</h3>
-                    <dl className="space-y-2">
-                      <div>
-                        <dt className="text-sm text-gray-500">Plaintiff</dt>
-                        <dd className="font-medium">{analysisData.extractedData?.plaintiff || 'Not identified'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500">Defendant</dt>
-                        <dd className="font-medium">{analysisData.extractedData?.defendant || 'Not identified'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-sm text-gray-500">Response Deadline</dt>
-                        <dd className="font-medium text-red-600 dark:text-red-400">
-                          {analysisData.extractedData?.responseDeadline 
-                            ? new Date(analysisData.extractedData.responseDeadline).toLocaleDateString()
-                            : 'Not specified'}
-                        </dd>
-                      </div>
-                    </dl>
+                    {/* Show different fields based on document type */}
+                    {analysisData.extractedData?.documentType === 'search_warrant' || 
+                     analysisData.extractedData?.documentType === 'arrest_warrant' ? (
+                      <>
+                        <h3 className="font-semibold text-gray-600 dark:text-gray-400 mb-2">Warrant Details</h3>
+                        <dl className="space-y-2">
+                          {analysisData.extractedData?.targetAddress && (
+                            <div>
+                              <dt className="text-sm text-gray-500">Target Address</dt>
+                              <dd className="font-medium">{analysisData.extractedData.targetAddress}</dd>
+                            </div>
+                          )}
+                          {analysisData.extractedData?.searchItems && analysisData.extractedData.searchItems.length > 0 && (
+                            <div>
+                              <dt className="text-sm text-gray-500">Items to Search</dt>
+                              <dd className="font-medium">{analysisData.extractedData.searchItems.length} items listed</dd>
+                            </div>
+                          )}
+                          <div>
+                            <dt className="text-sm text-gray-500">Issued Date</dt>
+                            <dd className="font-medium">
+                              {analysisData.extractedData?.issuedDate 
+                                ? new Date(analysisData.extractedData.issuedDate).toLocaleDateString()
+                                : 'Not specified'}
+                            </dd>
+                          </div>
+                        </dl>
+                      </>
+                    ) : (
+                      <>
+                        <h3 className="font-semibold text-gray-600 dark:text-gray-400 mb-2">Parties</h3>
+                        <dl className="space-y-2">
+                          <div>
+                            <dt className="text-sm text-gray-500">Plaintiff</dt>
+                            <dd className="font-medium">{analysisData.extractedData?.plaintiff || 'Not identified'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm text-gray-500">Defendant</dt>
+                            <dd className="font-medium">{analysisData.extractedData?.defendant || 'Not identified'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm text-gray-500">Response Deadline</dt>
+                            <dd className="font-medium text-red-600 dark:text-red-400">
+                              {analysisData.extractedData?.responseDeadline 
+                                ? new Date(analysisData.extractedData.responseDeadline).toLocaleDateString()
+                                : 'Not specified'}
+                            </dd>
+                          </div>
+                        </dl>
+                      </>
+                    )}
                   </div>
                 </div>
               </Card>

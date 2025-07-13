@@ -25,9 +25,22 @@ ArnieAI is a comprehensive legal AI platform designed to democratize access to l
 - Removed file type restrictions - processes PDF, DOC, TXT, RTF, images, etc.
 - Increased file size limit to 50MB to accommodate images
 - Field name agnostic - accepts files with any form field name
-- AI Vision extracts ALL text without skipping any details
-- Enhanced document processor to handle images and PDFs
-- Implemented comprehensive text extraction pipeline
+- Enhanced AI Vision prompt for legal documents - extracts complete text (not just 36 chars)
+- Comprehensive document type classification with 60+ legal document types including:
+  - Pleadings: complaints, answers, counterclaims, cross-claims, third-party complaints
+  - Motions: dismiss, summary judgment, compel, protective order, in limine, sanctions
+  - Discovery: interrogatories, depositions, requests for production/admission, subpoenas
+  - Affidavits & Declarations: standard, expert witness, under penalty of perjury
+  - Briefs: trial, appellate, memoranda of law, points & authorities, amicus curiae
+  - Court Orders: TRO, injunctions, scheduling orders, judgments (summary/declaratory/default)
+  - Criminal: indictments, warrants (search/arrest/bench), plea agreements, bail documents
+  - Appellate: notices of appeal, petitions for certiorari, writs (habeas corpus, mandamus, etc.)
+  - Trial: jury instructions, voir dire, witness/exhibit lists, pretrial orders
+  - Administrative: summons, notices, stipulations, settlements, dockets
+  - Specialized: patent/trademark filings, bankruptcy petitions, divorce/custody documents
+- UI now adapts based on document type (shows warrant details vs plaintiff/defendant)
+- Fixed text truncation on mobile for long filenames
+- Improved document analysis accuracy for non-civil documents
 
 ### Semantic Search & Legal Research
 - Created semantic search service with OpenAI embeddings
