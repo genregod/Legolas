@@ -93,35 +93,66 @@ export class DocumentProcessor {
       const imageBuffer = await fs.readFile(filePath);
       const base64Image = imageBuffer.toString('base64');
       
+      console.log(`Processing image: ${filePath}, Size: ${imageBuffer.length} bytes`);
+      
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
+          {
+            role: "system",
+            content: "You are a legal document OCR specialist. Your job is to extract every single character, word, line, and detail from legal documents. Never summarize - always provide the complete text."
+          },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "This is a legal document. Please extract ALL text from this image EXACTLY as it appears. Include every single detail, paragraph, section, date, name, case number, and any other information visible in the document. Do not summarize or skip any content. If there are tables, preserve their structure. If there are multiple pages, extract all pages completely."
+                text: `This image contains a legal document. Your task is to:
+
+1. Extract ALL visible text from the image - every word, number, date, name, address, case number, etc.
+2. Preserve the exact formatting including:
+   - Line breaks and paragraphs
+   - Headers and titles
+   - Lists and bullet points
+   - Table structures
+   - All dates and numbers
+   - ALL names of parties, attorneys, judges
+   - Court information and case numbers
+   - Filing dates and deadlines
+   - Legal claims and allegations
+   - Prayer for relief sections
+   - Signature blocks
+
+3. Include EVERYTHING visible - do not skip or summarize ANY content
+4. If the image quality is poor, still extract whatever you can see
+5. If there are multiple pages, extract all pages
+
+Start extracting now and provide the COMPLETE text:`
               },
               {
                 type: "image_url",
                 image_url: {
-                  url: `data:image/jpeg;base64,${base64Image}`
+                  url: `data:image/jpeg;base64,${base64Image}`,
+                  detail: "high"
                 }
               }
             ],
           },
         ],
-        max_tokens: 4000,
+        max_tokens: 4096,
+        temperature: 0.1,
       });
 
       const extractedText = response.choices[0]?.message?.content || "";
       
-      if (!extractedText.trim()) {
-        throw new Error("No text could be extracted from the image");
+      if (!extractedText.trim() || extractedText.length < 50) {
+        console.error("Insufficient text extracted:", extractedText);
+        throw new Error("Failed to extract meaningful text from the image");
       }
       
       console.log(`Successfully extracted ${extractedText.length} characters from image using Vision API`);
+      console.log("First 200 chars:", extractedText.substring(0, 200));
+      
       return extractedText;
     } catch (error) {
       console.error("Error processing image with Vision API:", error);
@@ -132,14 +163,20 @@ export class DocumentProcessor {
   // Extract structured data from the document text using GPT-4o
   async extractStructuredData(text: string): Promise<any> {
     try {
+      // If text is too short, it's likely the extraction failed
+      if (text.length < 100) {
+        console.error("Text too short for analysis:", text);
+        return this.basicTextExtraction(text);
+      }
+
       const prompt = `Analyze the following legal document and extract structured information in JSON format:
 
 Document Text:
-${text.substring(0, 4000)} // Limit to prevent token overflow
+${text.substring(0, 8000)} // Increased limit for better analysis
 
 Extract the following information:
 1. Case number
-2. Court name
+2. Court name  
 3. Plaintiff name(s)
 4. Defendant name(s)
 5. Filing date
@@ -151,14 +188,14 @@ Extract the following information:
 11. Important dates
 12. Legal representatives (attorneys)
 
-Return the data as a JSON object with these fields.`;
+Important: If you cannot find specific information, set the field to null. Always return valid JSON.`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: "You are a legal document analysis expert. Extract structured information from legal documents accurately and comprehensively."
+            content: "You are a legal document analysis expert. Extract structured information from legal documents accurately and comprehensively. Always return valid JSON even if some fields are missing."
           },
           {
             role: "user",
