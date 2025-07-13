@@ -232,6 +232,66 @@ Important: If you cannot find specific information, set the field to null. Alway
   
   // Basic text extraction as fallback
   private basicTextExtraction(text: string): any {
+    const documentType = this.classifyDocumentType(text);
+    
+    // Handle warrants and writs
+    if (documentType.includes('warrant') || documentType.includes('writ')) {
+      const caseNumberMatch = text.match(/Case\s*(?:No\.?|Number)[\s:]*([A-Z0-9-]+)/i);
+      const courtMatch = text.match(/(?:IN THE|DISTRICT COURT|SUPERIOR COURT|STATE OF|COURT OF)[\s]*([^\n]+)/i);
+      const addressMatch = text.match(/(?:residence|located|property|premises).*?(?:at|located at)\s*([^\n]+)/i);
+      
+      return {
+        documentType: documentType,
+        caseNumber: caseNumberMatch ? caseNumberMatch[1] : "Not specified",
+        court: courtMatch ? courtMatch[1].trim() : "Unknown Court",
+        targetAddress: addressMatch ? addressMatch[1].trim() : null,
+        searchItems: documentType === 'search_warrant' ? this.extractSearchItems(text) : null,
+        issuedDate: new Date().toISOString().split('T')[0],
+        plaintiff: null,
+        defendant: null,
+        responseDeadline: null,
+      };
+    }
+    
+    // Handle depositions and discovery documents
+    if (documentType === 'deposition' || documentType.includes('discover') || documentType.includes('interrogator')) {
+      const caseNumberMatch = text.match(/Case\s*(?:No\.?|Number)[\s:]*([A-Z0-9-]+)/i);
+      const deponentMatch = text.match(/(?:Deposition of|Deponent:)\s*([^\n]+)/i);
+      const dateMatch = text.match(/(?:Date:|Taken on)\s*([^\n]+)/i);
+      
+      return {
+        documentType: documentType,
+        caseNumber: caseNumberMatch ? caseNumberMatch[1] : null,
+        deponent: deponentMatch ? deponentMatch[1].trim() : null,
+        depositionDate: dateMatch ? dateMatch[1].trim() : null,
+        plaintiff: null,
+        defendant: null,
+        court: "Discovery Document",
+        responseDeadline: null,
+      };
+    }
+    
+    // Handle judgments and court orders
+    if (documentType.includes('judgment') || documentType === 'court_order') {
+      const caseNumberMatch = text.match(/Case\s*(?:No\.?|Number)[\s:]*([A-Z0-9-]+)/i);
+      const plaintiffMatch = text.match(/(?:Plaintiff|Petitioner)[s]?[\s:]*([^v\n]+?)(?:\s*v\.?|\n)/i);
+      const defendantMatch = text.match(/(?:v\.?\s+|Defendant|Respondent)[s]?[\s:]*([^\n]+)/i);
+      const courtMatch = text.match(/(?:IN THE|COURT:|Court of)[\s]*([^\n]+)/i);
+      const rulingMatch = text.match(/(?:ORDERED|ADJUDGED|DECREED)[\s:]*([^\n]+)/i);
+      
+      return {
+        documentType: documentType,
+        caseNumber: caseNumberMatch ? caseNumberMatch[1] : null,
+        plaintiff: plaintiffMatch ? plaintiffMatch[1].trim() : null,
+        defendant: defendantMatch ? defendantMatch[1].trim() : null,
+        court: courtMatch ? courtMatch[1].trim() : "Unknown Court",
+        ruling: rulingMatch ? rulingMatch[1].trim() : null,
+        filingDate: new Date().toISOString().split('T')[0],
+        responseDeadline: null,
+      };
+    }
+    
+    // For civil cases (default behavior)
     const caseNumberMatch = text.match(/Case No[:\s]+([A-Z0-9-]+)/i);
     const plaintiffMatch = text.match(/([A-Z][A-Z\s]+),\s*Plaintiff/);
     const defendantMatch = text.match(/v\.\s*([A-Z][A-Z\s]+),\s*Defendant/);
@@ -256,33 +316,243 @@ Important: If you cannot find specific information, set the field to null. Alway
     responseDeadline.setDate(responseDeadline.getDate() + 30);
     
     return {
-      caseNumber: caseNumberMatch ? caseNumberMatch[1] : `CV-${Date.now()}`,
-      plaintiff: plaintiffMatch ? plaintiffMatch[1].trim() : "Unknown Plaintiff",
-      defendant: defendantMatch ? defendantMatch[1].trim() : "Unknown Defendant",
-      court: courtMatch ? courtMatch[1].trim() : "Superior Court",
+      caseNumber: caseNumberMatch ? caseNumberMatch[1] : null,
+      plaintiff: plaintiffMatch ? plaintiffMatch[1].trim() : null,
+      defendant: defendantMatch ? defendantMatch[1].trim() : null,
+      court: courtMatch ? courtMatch[1].trim() : "Unknown Court",
       filingDate: today.toISOString().split('T')[0],
       responseDeadline: responseDeadline.toISOString().split('T')[0],
-      documentType: this.classifyDocumentType(text),
-      allegations: allegations.slice(0, 5), // Limit to 5 main allegations
+      documentType: documentType,
+      allegations: allegations.slice(0, 5),
       damageAmount: amount ? parseInt(amount) : null,
       causesOfAction: this.extractCausesOfAction(text),
     };
+  }
+  
+  // Extract search items from warrant
+  private extractSearchItems(text: string): string[] {
+    const items = [];
+    const itemsSection = text.match(/PROPERTY[\s\/]*EVIDENCE[\s]+TO[\s]+BE[\s]+SEIZED[\s:]*([^]+?)(?:Proof|Your Affiant|You are|$)/i);
+    
+    if (itemsSection) {
+      const itemMatches = itemsSection[1].matchAll(/\d+\.\s*([^\n]+)/g);
+      for (const match of itemMatches) {
+        items.push(match[1].trim());
+      }
+    }
+    
+    return items;
   }
 
   // Classify the document type based on content
   private classifyDocumentType(text: string): string {
     const textLower = text.toLowerCase();
     
-    if (textLower.includes('complaint for') || textLower.includes('cause of action')) {
+    // PLEADINGS (Initial Case Documents)
+    if (textLower.includes('complaint for') || textLower.includes('cause of action') || textLower.includes('plaintiff complains')) {
       return 'complaint';
-    } else if (textLower.includes('answer to complaint')) {
+    } else if (textLower.includes('answer to complaint') || textLower.includes('defendant answers')) {
       return 'answer';
-    } else if (textLower.includes('motion to') || textLower.includes('notice of motion')) {
-      return 'motion';
+    } else if (textLower.includes('counterclaim')) {
+      return 'counterclaim';
+    } else if (textLower.includes('cross-claim') || textLower.includes('crossclaim')) {
+      return 'cross_claim';
+    } else if (textLower.includes('third-party complaint') || textLower.includes('third party complaint')) {
+      return 'third_party_complaint';
+    } else if (textLower.includes('reply to counterclaim')) {
+      return 'reply';
+    } else if (textLower.includes('amended complaint') || textLower.includes('amended answer')) {
+      return 'amended_pleading';
     } else if (textLower.includes('demurrer')) {
       return 'demurrer';
-    } else if (textLower.includes('discovery') || textLower.includes('interrogator')) {
-      return 'discovery';
+    }
+    
+    // MOTIONS (Requests for Court Action)
+    else if (textLower.includes('motion for summary judgment')) {
+      return 'motion_summary_judgment';
+    } else if (textLower.includes('motion to dismiss')) {
+      return 'motion_dismiss';
+    } else if (textLower.includes('motion for preliminary injunction')) {
+      return 'motion_preliminary_injunction';
+    } else if (textLower.includes('motion to compel')) {
+      return 'motion_compel';
+    } else if (textLower.includes('motion for protective order')) {
+      return 'motion_protective_order';
+    } else if (textLower.includes('motion in limine')) {
+      return 'motion_in_limine';
+    } else if (textLower.includes('motion for sanctions')) {
+      return 'motion_sanctions';
+    } else if (textLower.includes('motion to seal')) {
+      return 'motion_seal';
+    } else if (textLower.includes('motion for directed verdict')) {
+      return 'motion_directed_verdict';
+    } else if (textLower.includes('motion for judgment as a matter of law')) {
+      return 'motion_jmol';
+    } else if (textLower.includes('motion to') || textLower.includes('notice of motion')) {
+      return 'motion';
+    }
+    
+    // DISCOVERY DOCUMENTS
+    else if (textLower.includes('interrogator')) {
+      return 'interrogatories';
+    } else if (textLower.includes('request for production') || textLower.includes('requests for production')) {
+      return 'request_production';
+    } else if (textLower.includes('request for admission') || textLower.includes('requests for admission')) {
+      return 'request_admission';
+    } else if (textLower.includes('deposition notice')) {
+      return 'deposition_notice';
+    } else if (textLower.includes('deposition of') || textLower.includes('deposition transcript')) {
+      return 'deposition_transcript';
+    } else if (textLower.includes('subpoena duces tecum')) {
+      return 'subpoena_duces_tecum';
+    } else if (textLower.includes('subpoena')) {
+      return 'subpoena';
+    }
+    
+    // AFFIDAVITS & DECLARATIONS
+    else if (textLower.includes('affidavit')) {
+      return 'affidavit';
+    } else if (textLower.includes('declaration under penalty of perjury')) {
+      return 'declaration_perjury';
+    } else if (textLower.includes('declaration')) {
+      return 'declaration';
+    } else if (textLower.includes('expert witness affidavit') || textLower.includes('expert report')) {
+      return 'expert_affidavit';
+    } else if (textLower.includes('witness statement')) {
+      return 'witness_statement';
+    }
+    
+    // BRIEFS (Legal Arguments)
+    else if (textLower.includes('trial brief')) {
+      return 'trial_brief';
+    } else if (textLower.includes('appellate brief')) {
+      return 'appellate_brief';
+    } else if (textLower.includes('memorandum of points and authorities')) {
+      return 'points_authorities';
+    } else if (textLower.includes('memorandum of law') || textLower.includes('memoranda of law')) {
+      return 'memorandum_law';
+    } else if (textLower.includes('reply brief')) {
+      return 'reply_brief';
+    } else if (textLower.includes('amicus curiae') || textLower.includes('amicus brief')) {
+      return 'amicus_brief';
+    } else if (textLower.includes('brief in support') || textLower.includes('opening brief')) {
+      return 'brief';
+    }
+    
+    // COURT ORDERS & JUDGMENTS
+    else if (textLower.includes('temporary restraining order') || textLower.includes('tro')) {
+      return 'tro';
+    } else if (textLower.includes('permanent injunction')) {
+      return 'permanent_injunction';
+    } else if (textLower.includes('scheduling order')) {
+      return 'scheduling_order';
+    } else if (textLower.includes('protective order')) {
+      return 'protective_order';
+    } else if (textLower.includes('summary judgment')) {
+      return 'summary_judgment';
+    } else if (textLower.includes('declaratory judgment')) {
+      return 'declaratory_judgment';
+    } else if (textLower.includes('default judgment')) {
+      return 'default_judgment';
+    } else if (textLower.includes('judgment') || textLower.includes('order granting')) {
+      return 'judgment';
+    } else if (textLower.includes('court order') || textLower.includes('order denying')) {
+      return 'court_order';
+    }
+    
+    // CRIMINAL-SPECIFIC DOCUMENTS
+    else if (textLower.includes('indictment')) {
+      return 'indictment';
+    } else if (textLower.includes('search warrant')) {
+      return 'search_warrant';
+    } else if (textLower.includes('arrest warrant')) {
+      return 'arrest_warrant';
+    } else if (textLower.includes('bench warrant')) {
+      return 'bench_warrant';
+    } else if (textLower.includes('bail') && (textLower.includes('agreement') || textLower.includes('bond'))) {
+      return 'bail_document';
+    } else if (textLower.includes('plea agreement')) {
+      return 'plea_agreement';
+    } else if (textLower.includes('sentencing') && (textLower.includes('order') || textLower.includes('judgment'))) {
+      return 'sentencing_document';
+    } else if (textLower.includes('presentence report')) {
+      return 'presentence_report';
+    }
+    
+    // APPELLATE DOCUMENTS
+    else if (textLower.includes('notice of appeal')) {
+      return 'notice_appeal';
+    } else if (textLower.includes('record on appeal')) {
+      return 'record_appeal';
+    } else if (textLower.includes('petition for certiorari')) {
+      return 'petition_certiorari';
+    } else if (textLower.includes('writ of')) {
+      if (textLower.includes('habeas corpus')) return 'writ_habeas_corpus';
+      if (textLower.includes('mandamus')) return 'writ_mandamus';
+      if (textLower.includes('certiorari')) return 'writ_certiorari';
+      if (textLower.includes('execution')) return 'writ_execution';
+      if (textLower.includes('attachment')) return 'writ_attachment';
+      if (textLower.includes('prohibition')) return 'writ_prohibition';
+      return 'writ';
+    }
+    
+    // TRIAL DOCUMENTS
+    else if (textLower.includes('jury instruction')) {
+      return 'jury_instructions';
+    } else if (textLower.includes('jury verdict')) {
+      return 'jury_verdict';
+    } else if (textLower.includes('voir dire')) {
+      return 'voir_dire';
+    } else if (textLower.includes('witness list')) {
+      return 'witness_list';
+    } else if (textLower.includes('exhibit list')) {
+      return 'exhibit_list';
+    } else if (textLower.includes('pretrial order')) {
+      return 'pretrial_order';
+    }
+    
+    // ADMINISTRATIVE DOCUMENTS
+    else if (textLower.includes('summons')) {
+      return 'summons';
+    } else if (textLower.includes('service of process')) {
+      return 'service_process';
+    } else if (textLower.includes('certificate of service')) {
+      return 'certificate_service';
+    } else if (textLower.includes('notice of')) {
+      if (textLower.includes('hearing')) return 'notice_hearing';
+      if (textLower.includes('deposition')) return 'notice_deposition';
+      if (textLower.includes('motion')) return 'notice_motion';
+      return 'notice';
+    } else if (textLower.includes('stipulation')) {
+      return 'stipulation';
+    } else if (textLower.includes('settlement agreement')) {
+      return 'settlement_agreement';
+    } else if (textLower.includes('docket')) {
+      return 'docket';
+    }
+    
+    // SPECIALIZED DOCUMENTS
+    else if (textLower.includes('petition')) {
+      if (textLower.includes('divorce')) return 'divorce_petition';
+      if (textLower.includes('bankruptcy')) return 'bankruptcy_petition';
+      if (textLower.includes('custody')) return 'custody_petition';
+      return 'petition';
+    } else if (textLower.includes('patent') && (textLower.includes('application') || textLower.includes('filing'))) {
+      return 'patent_filing';
+    } else if (textLower.includes('trademark') && (textLower.includes('application') || textLower.includes('filing'))) {
+      return 'trademark_filing';
+    } else if (textLower.includes('class action')) {
+      return 'class_action';
+    } else if (textLower.includes('corporate') && (textLower.includes('filing') || textLower.includes('document'))) {
+      return 'corporate_document';
+    } else if (textLower.includes('memorandum')) {
+      return 'memorandum';
+    } else if (textLower.includes('contract') || textLower.includes('agreement')) {
+      return 'contract';
+    } else if (textLower.includes('medical record')) {
+      return 'medical_records';
+    } else if (textLower.includes('financial record') || textLower.includes('bank statement')) {
+      return 'financial_records';
     } else {
       return 'other';
     }
