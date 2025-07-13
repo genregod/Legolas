@@ -359,6 +359,13 @@ export default function CaseDashboard() {
                         <ChevronRight className="h-4 w-4 ml-auto" />
                       </Button>
                     </Link>
+                    <Link href={`/case/${case_data.id}/document-generator`}>
+                      <Button className="w-full justify-start" variant="default">
+                        <FileText className="h-4 w-4 mr-2" />
+                        AI Document Generator
+                        <ChevronRight className="h-4 w-4 ml-auto" />
+                      </Button>
+                    </Link>
                     <Link href={`/case/${case_data.id}/filing-instructions`}>
                       <Button variant="outline" className="w-full justify-start">
                         <Calendar className="h-4 w-4 mr-2" />

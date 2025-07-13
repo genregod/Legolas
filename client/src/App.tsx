@@ -17,6 +17,7 @@ import AffirmativeDefenses from "@/pages/affirmative-defenses";
 import DocumentPreview from "@/pages/document-preview";
 import FilingInstructions from "@/pages/filing-instructions";
 import Subscribe from "@/pages/subscribe";
+import DocumentGenerator from "@/pages/document-generator";
 import NotFound from "@/pages/not-found";
 
 // Make sure to call `loadStripe` outside of a component's render to avoid
@@ -40,6 +41,7 @@ function Router() {
           <Route path="/case/:id/affirmative-defenses" component={AffirmativeDefenses} />
           <Route path="/case/:id/document-preview" component={DocumentPreview} />
           <Route path="/case/:id/filing-instructions" component={FilingInstructions} />
+          <Route path="/case/:id/document-generator" component={DocumentGenerator} />
         </>
       )}
       <Route component={NotFound} />
