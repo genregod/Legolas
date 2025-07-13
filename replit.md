@@ -20,7 +20,12 @@ ArnieAI is a comprehensive legal AI platform designed to democratize access to l
 - Implemented jurisdiction-specific formatting rules
 
 ### Document Processing Enhancements
-- Added OCR capabilities using Tesseract.js for scanned documents
+- **MAJOR UPDATE**: Wildcard file type support - accepts ANY file type
+- Integrated OpenAI Vision API for image processing (phone photos, scanned docs)
+- Removed file type restrictions - processes PDF, DOC, TXT, RTF, images, etc.
+- Increased file size limit to 50MB to accommodate images
+- Field name agnostic - accepts files with any form field name
+- AI Vision extracts ALL text without skipping any details
 - Enhanced document processor to handle images and PDFs
 - Implemented comprehensive text extraction pipeline
 

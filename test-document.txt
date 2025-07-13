@@ -1,0 +1,30 @@
+Case No. 2024-CV-001234
+
+SUPERIOR COURT OF CALIFORNIA
+COUNTY OF LOS ANGELES
+
+JOHN DOE,
+    Plaintiff,
+v.
+JANE SMITH CORPORATION,
+    Defendant.
+
+COMPLAINT FOR DAMAGES
+
+1. This is an action for breach of contract.
+
+2. Plaintiff alleges that on or about January 1, 2024, Plaintiff and Defendant entered into a written agreement.
+
+3. Plaintiff performed all conditions required under the agreement.
+
+4. Defendant breached the agreement by failing to pay the agreed amount of $50,000.
+
+WHEREFORE, Plaintiff prays for judgment against Defendant as follows:
+1. For damages in the amount of $50,000;
+2. For costs of suit;
+3. For such other relief as the Court deems proper.
+
+Date: January 15, 2024
+
+Respectfully submitted,
+John Doe, Plaintiff
