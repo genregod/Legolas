@@ -9,6 +9,8 @@ import { insertCaseSchema, insertDocumentSchema, insertAllegationSchema, insertA
 import { z } from "zod";
 import { documentProcessor } from "./services/documentProcessor";
 import { documentGenerator } from "./services/documentGenerator";
+import { semanticSearch } from "./services/semanticSearch";
+import { legalResearch } from "./services/legalResearch";
 import { WebSocketServer } from "ws";
 
 // Initialize Stripe only if keys are available
@@ -488,6 +490,144 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error exporting case:", error);
       res.status(500).json({ message: "Failed to export case" });
+    }
+  });
+
+  // Semantic search endpoint
+  app.get('/api/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const { q, limit = 10 } = req.query;
+      
+      if (!q) {
+        return res.status(400).json({ message: "Search query required" });
+      }
+
+      const results = await semanticSearch.search(
+        q as string,
+        req.user.claims.sub,
+        parseInt(limit as string)
+      );
+
+      res.json(results);
+    } catch (error) {
+      console.error("Error performing search:", error);
+      res.status(500).json({ message: "Search failed" });
+    }
+  });
+
+  // Find similar cases endpoint
+  app.get('/api/cases/:id/similar', isAuthenticated, async (req: any, res) => {
+    try {
+      const caseId = parseInt(req.params.id);
+      const { limit = 5 } = req.query;
+
+      const similarCases = await semanticSearch.findSimilarCases(
+        caseId,
+        req.user.claims.sub,
+        parseInt(limit as string)
+      );
+
+      res.json(similarCases);
+    } catch (error) {
+      console.error("Error finding similar cases:", error);
+      res.status(500).json({ message: "Failed to find similar cases" });
+    }
+  });
+
+  // Legal research endpoint
+  app.post('/api/legal-research', isAuthenticated, async (req: any, res) => {
+    try {
+      const { topic, jurisdiction, context } = req.body;
+
+      if (!topic || !jurisdiction) {
+        return res.status(400).json({ message: "Topic and jurisdiction required" });
+      }
+
+      const research = await legalResearch.researchLegalTopic(
+        topic,
+        jurisdiction,
+        context
+      );
+
+      res.json(research);
+    } catch (error) {
+      console.error("Error performing legal research:", error);
+      res.status(500).json({ message: "Legal research failed" });
+    }
+  });
+
+  // Defense recommendations endpoint
+  app.get('/api/cases/:id/defense-recommendations', isAuthenticated, async (req: any, res) => {
+    try {
+      const caseId = parseInt(req.params.id);
+      
+      // Verify case access
+      const case_data = await storage.getCase(caseId, req.user.claims.sub);
+      if (!case_data) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const allegations = await storage.getAllegations(caseId);
+      
+      const recommendations = await legalResearch.recommendAffirmativeDefenses(
+        caseId,
+        allegations,
+        case_data.court
+      );
+
+      res.json(recommendations);
+    } catch (error) {
+      console.error("Error getting defense recommendations:", error);
+      res.status(500).json({ message: "Failed to get defense recommendations" });
+    }
+  });
+
+  // Case strategy endpoint
+  app.get('/api/cases/:id/strategy', isAuthenticated, async (req: any, res) => {
+    try {
+      const caseId = parseInt(req.params.id);
+      
+      // Verify case access
+      const case_data = await storage.getCase(caseId, req.user.claims.sub);
+      if (!case_data) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const allegations = await storage.getAllegations(caseId);
+      const defenses = await storage.getAffirmativeDefenses(caseId);
+
+      const strategy = await legalResearch.generateCaseStrategy(
+        caseId,
+        case_data,
+        allegations,
+        defenses
+      );
+
+      res.json(strategy);
+    } catch (error) {
+      console.error("Error generating case strategy:", error);
+      res.status(500).json({ message: "Failed to generate case strategy" });
+    }
+  });
+
+  // Procedural requirements endpoint
+  app.get('/api/procedural-requirements', isAuthenticated, async (req: any, res) => {
+    try {
+      const { documentType, jurisdiction } = req.query;
+
+      if (!documentType || !jurisdiction) {
+        return res.status(400).json({ message: "Document type and jurisdiction required" });
+      }
+
+      const requirements = await legalResearch.getProceduralRequirements(
+        documentType as string,
+        jurisdiction as string
+      );
+
+      res.json(requirements);
+    } catch (error) {
+      console.error("Error getting procedural requirements:", error);
+      res.status(500).json({ message: "Failed to get procedural requirements" });
     }
   });
 
