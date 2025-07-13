@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { Scale, Bell } from "lucide-react";
+import { Scale, Bell, Menu, X } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import { useState } from "react";
 
 export default function Navigation() {
   const { user, isAuthenticated } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
     window.location.href = "/api/logout";
@@ -24,32 +26,42 @@ export default function Navigation() {
           </div>
           
           {isAuthenticated ? (
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm">
-                <Bell className="h-4 w-4" />
-              </Button>
-              <div className="flex items-center space-x-2">
-                {user?.profileImageUrl ? (
-                  <img 
-                    src={user.profileImageUrl} 
-                    alt="Profile" 
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm font-medium text-primary">
-                      {user?.firstName?.[0] || user?.email?.[0] || 'U'}
-                    </span>
-                  </div>
-                )}
-                <span className="text-sm font-medium text-gray-700">
-                  {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user?.email || 'User'}
-                </span>
+            <>
+              <div className="hidden sm:flex items-center space-x-4">
+                <Button variant="ghost" size="sm">
+                  <Bell className="h-4 w-4" />
+                </Button>
+                <div className="flex items-center space-x-2">
+                  {user?.profileImageUrl ? (
+                    <img 
+                      src={user.profileImageUrl} 
+                      alt="Profile" 
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-medium text-primary">
+                        {user?.firstName?.[0] || user?.email?.[0] || 'U'}
+                      </span>
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-gray-700 hidden md:inline">
+                    {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user?.email || 'User'}
+                  </span>
+                </div>
+                <Button onClick={handleLogout} variant="outline" size="sm">
+                  Sign Out
+                </Button>
               </div>
-              <Button onClick={handleLogout} variant="outline" size="sm">
-                Sign Out
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="sm:hidden"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </Button>
-            </div>
+            </>
           ) : (
             <div className="flex items-center space-x-4">
               <a href="#features" className="text-gray-600 hover:text-primary transition-colors hidden md:block">
