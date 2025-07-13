@@ -91,31 +91,31 @@ export default function DocumentUpload() {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-black">
       <Navigation />
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-4 sm:py-8">
         <div className="max-w-6xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-3">
+          <div className="mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2 sm:mb-3">
               AI-Powered Legal Document Analysis
             </h1>
-            <p className="text-lg text-gray-600 dark:text-gray-300">
+            <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300">
               Upload your legal document for comprehensive AI analysis with GPT-4 technology
             </p>
           </div>
 
           {!analysisData ? (
-            <Card className="p-8">
-              <div className="space-y-6">
+            <Card className="p-4 sm:p-6 md:p-8">
+              <div className="space-y-4 sm:space-y-6">
                 <FileUpload
                   onFileSelect={handleFileSelect}
                   uploadedFile={uploadedFile}
                   onRemoveFile={() => setUploadedFile(null)}
                 />
                 
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                   <Button
                     onClick={handleUpload}
                     disabled={!uploadedFile || uploadMutation.isPending}
-                    className="flex-1"
+                    className="flex-1 h-12"
                   >
                     {uploadMutation.isPending ? (
                       <>
@@ -133,6 +133,7 @@ export default function DocumentUpload() {
                     variant="outline"
                     onClick={() => navigate('/dashboard')}
                     disabled={uploadMutation.isPending}
+                    className="h-12"
                   >
                     Cancel
                   </Button>
@@ -150,15 +151,15 @@ export default function DocumentUpload() {
                     <dl className="space-y-2">
                       <div>
                         <dt className="text-sm text-gray-500">Case Number</dt>
-                        <dd className="font-medium">{analysisData.extractedData.caseNumber}</dd>
+                        <dd className="font-medium">{analysisData.extractedData?.caseNumber || 'Not identified'}</dd>
                       </div>
                       <div>
                         <dt className="text-sm text-gray-500">Court</dt>
-                        <dd className="font-medium">{analysisData.extractedData.court}</dd>
+                        <dd className="font-medium">{analysisData.extractedData?.court || 'Not identified'}</dd>
                       </div>
                       <div>
                         <dt className="text-sm text-gray-500">Document Type</dt>
-                        <dd className="font-medium capitalize">{analysisData.extractedData.documentType}</dd>
+                        <dd className="font-medium capitalize">{analysisData.extractedData?.documentType || 'Unknown'}</dd>
                       </div>
                     </dl>
                   </div>
@@ -167,16 +168,18 @@ export default function DocumentUpload() {
                     <dl className="space-y-2">
                       <div>
                         <dt className="text-sm text-gray-500">Plaintiff</dt>
-                        <dd className="font-medium">{analysisData.extractedData.plaintiff}</dd>
+                        <dd className="font-medium">{analysisData.extractedData?.plaintiff || 'Not identified'}</dd>
                       </div>
                       <div>
                         <dt className="text-sm text-gray-500">Defendant</dt>
-                        <dd className="font-medium">{analysisData.extractedData.defendant}</dd>
+                        <dd className="font-medium">{analysisData.extractedData?.defendant || 'Not identified'}</dd>
                       </div>
                       <div>
                         <dt className="text-sm text-gray-500">Response Deadline</dt>
                         <dd className="font-medium text-red-600 dark:text-red-400">
-                          {new Date(analysisData.extractedData.responseDeadline).toLocaleDateString()}
+                          {analysisData.extractedData?.responseDeadline 
+                            ? new Date(analysisData.extractedData.responseDeadline).toLocaleDateString()
+                            : 'Not specified'}
                         </dd>
                       </div>
                     </dl>
@@ -192,14 +195,18 @@ export default function DocumentUpload() {
                 <p className="text-blue-800 dark:text-blue-200 mb-4">
                   {analysisData.analysis.summary}
                 </p>
-                <div className="flex items-center gap-2 text-sm">
-                  <Badge variant="outline" className="border-blue-600 text-blue-700 dark:text-blue-300">
-                    Risk Level: {analysisData.analysis.riskAssessment.overallRisk}
-                  </Badge>
-                  <Badge variant="outline" className="border-blue-600 text-blue-700 dark:text-blue-300">
-                    {analysisData.extractedData.causesOfAction.length} Causes of Action
-                  </Badge>
-                  {analysisData.extractedData.damageAmount && (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  {analysisData.analysis?.riskAssessment?.overallRisk && (
+                    <Badge variant="outline" className="border-blue-600 text-blue-700 dark:text-blue-300">
+                      Risk Level: {analysisData.analysis.riskAssessment.overallRisk}
+                    </Badge>
+                  )}
+                  {analysisData.extractedData?.causesOfAction && (
+                    <Badge variant="outline" className="border-blue-600 text-blue-700 dark:text-blue-300">
+                      {analysisData.extractedData.causesOfAction.length} Causes of Action
+                    </Badge>
+                  )}
+                  {analysisData.extractedData?.damageAmount && (
                     <Badge variant="outline" className="border-blue-600 text-blue-700 dark:text-blue-300">
                       Damages: ${analysisData.extractedData.damageAmount.toLocaleString()}
                     </Badge>
@@ -208,54 +215,60 @@ export default function DocumentUpload() {
               </Card>
 
               {/* Key Issues */}
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-3">Key Legal Issues Identified</h3>
-                <ul className="space-y-2">
-                  {analysisData.analysis.keyIssues.map((issue: string, index: number) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700 dark:text-gray-300">{issue}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
+              {analysisData.analysis?.keyIssues && analysisData.analysis.keyIssues.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-3">Key Legal Issues Identified</h3>
+                  <ul className="space-y-2">
+                    {analysisData.analysis.keyIssues.map((issue: string, index: number) => (
+                      <li key={index} className="flex items-start gap-2">
+                        <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-700 dark:text-gray-300">{issue}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
 
               {/* Suggested Defenses */}
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  AI-Suggested Affirmative Defenses
-                </h3>
-                <div className="space-y-3">
-                  {analysisData.analysis.suggestedDefenses.map((defense: any, index: number) => (
-                    <div key={index} className="border rounded-lg p-4 dark:border-gray-700">
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-medium">{defense.defenseTitle}</h4>
-                        <Badge 
-                          variant={defense.strength === 'high' ? 'default' : defense.strength === 'medium' ? 'secondary' : 'outline'}
-                        >
-                          {defense.strength} strength
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                        {defense.defenseDescription}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-500">
-                        Legal Basis: {defense.legalBasis}
-                      </p>
+              {analysisData.analysis?.suggestedDefenses && analysisData.analysis.suggestedDefenses.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    AI-Suggested Affirmative Defenses
+                  </h3>
+                  <div className="space-y-3">
+                    {analysisData.analysis.suggestedDefenses.map((defense: any, index: number) => (
+                      <div key={index} className="border rounded-lg p-4 dark:border-gray-700">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                          <h4 className="font-medium">{defense.defenseTitle || 'Unnamed Defense'}</h4>
+                          <Badge 
+                            variant={defense.strength === 'high' ? 'default' : defense.strength === 'medium' ? 'secondary' : 'outline'}
+                            className="w-fit"
+                          >
+                            {defense.strength || 'unknown'} strength
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                          {defense.defenseDescription || defense.description || 'No description available'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500">
+                          Legal Basis: {defense.legalBasis || 'Not specified'}
+                        </p>
                     </div>
                   ))}
                 </div>
               </Card>
+              )}
 
               {/* Next Steps */}
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Recommended Next Steps
-                </h3>
-                <div className="space-y-3">
-                  {analysisData.analysis.nextSteps.map((step: any, index: number) => (
+              {analysisData.analysis?.nextSteps && analysisData.analysis.nextSteps.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Recommended Next Steps
+                  </h3>
+                  <div className="space-y-3">
+                    {analysisData.analysis.nextSteps.map((step: any, index: number) => (
                     <div key={index} className="flex items-start gap-3">
                       <div className={`p-2 rounded-lg ${
                         step.priority === 'critical' ? 'bg-red-100 dark:bg-red-900/30' :
@@ -281,6 +294,7 @@ export default function DocumentUpload() {
                   ))}
                 </div>
               </Card>
+              )}
 
               {/* Action Buttons */}
               <div className="flex gap-4">
