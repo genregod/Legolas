@@ -53,13 +53,15 @@ export default function FileUpload({
 
   if (uploadedFile) {
     return (
-      <div className={`p-6 bg-gray-50 rounded-lg ${className}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <FileText className="h-8 w-8 text-red-500 mr-3" />
-            <div>
-              <div className="font-medium text-gray-900">{uploadedFile.name}</div>
-              <div className="text-sm text-gray-500">
+      <div className={`p-6 bg-gray-50 dark:bg-gray-800 rounded-lg ${className}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center min-w-0 flex-1">
+            <FileText className="h-8 w-8 text-red-500 mr-3 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                {uploadedFile.name}
+              </div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 {(uploadedFile.size / (1024 * 1024)).toFixed(1)} MB
               </div>
             </div>
@@ -68,7 +70,7 @@ export default function FileUpload({
             variant="ghost"
             size="sm"
             onClick={onRemoveFile}
-            className="text-red-500 hover:text-red-700"
+            className="text-red-500 hover:text-red-700 flex-shrink-0"
           >
             <X className="h-4 w-4" />
           </Button>
