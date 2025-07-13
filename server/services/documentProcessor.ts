@@ -18,6 +18,15 @@ export class DocumentProcessor {
     let extractedText = "";
     
     try {
+      // Image extensions that should use AI vision
+      const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.heic', '.heif', '.tiff'];
+      
+      // Use AI vision for images
+      if (imageExtensions.includes(fileExt)) {
+        console.log(`Processing image file ${fileExt} with AI Vision...`);
+        return await this.processImageWithVision(filePath);
+      }
+      
       switch (fileExt) {
         case '.pdf':
           // Extract text from PDF
@@ -25,17 +34,10 @@ export class DocumentProcessor {
           const pdfData = await pdfParse(pdfBuffer);
           extractedText = pdfData.text;
           
-          // If PDF has no text (scanned document), use OCR
-          if (!extractedText.trim()) {
-            console.log("PDF appears to be scanned, using OCR...");
-            const { data: { text } } = await Tesseract.recognize(
-              filePath,
-              'eng',
-              {
-                logger: m => console.log(`OCR Progress: ${m.progress * 100}%`)
-              }
-            );
-            extractedText = text;
+          // If PDF has no text (scanned document), use AI vision
+          if (!extractedText.trim() || extractedText.length < 50) {
+            console.log("PDF appears to be scanned or has minimal text, using AI Vision...");
+            return await this.processImageWithVision(filePath);
           }
           break;
           
@@ -47,31 +49,25 @@ export class DocumentProcessor {
           extractedText = result.value;
           break;
           
-        case '.png':
-        case '.jpg':
-        case '.jpeg':
-          // Use OCR for image files
-          const { data: { text } } = await Tesseract.recognize(
-            filePath,
-            'eng',
-            {
-              logger: m => console.log(`OCR Progress: ${m.progress * 100}%`)
-            }
-          );
-          extractedText = text;
+        case '.txt':
+        case '.rtf':
+          // Read as plain text
+          extractedText = await fs.readFile(filePath, 'utf-8');
           break;
           
         default:
-          // Try to read as plain text
-          extractedText = await fs.readFile(filePath, 'utf-8');
+          // For unknown file types, try AI vision to determine content
+          console.log(`Unknown file type ${fileExt}, using AI Vision to analyze...`);
+          return await this.processImageWithVision(filePath);
       }
       
       // Clean and normalize the extracted text
       extractedText = this.cleanExtractedText(extractedText);
       
-      // If we still don't have text, throw an error
+      // If we still don't have text, try AI vision as last resort
       if (!extractedText.trim()) {
-        throw new Error("No text could be extracted from the document");
+        console.log("No text extracted, attempting AI Vision as fallback...");
+        return await this.processImageWithVision(filePath);
       }
       
       return extractedText;
@@ -89,6 +85,48 @@ export class DocumentProcessor {
       .replace(/\s{2,}/g, ' ') // Replace multiple spaces with single space
       .replace(/[^\x20-\x7E\n]/g, '') // Remove non-printable characters
       .trim();
+  }
+
+  // Process images using OpenAI Vision API
+  private async processImageWithVision(filePath: string): Promise<string> {
+    try {
+      const imageBuffer = await fs.readFile(filePath);
+      const base64Image = imageBuffer.toString('base64');
+      
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "This is a legal document. Please extract ALL text from this image EXACTLY as it appears. Include every single detail, paragraph, section, date, name, case number, and any other information visible in the document. Do not summarize or skip any content. If there are tables, preserve their structure. If there are multiple pages, extract all pages completely."
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64Image}`
+                }
+              }
+            ],
+          },
+        ],
+        max_tokens: 4000,
+      });
+
+      const extractedText = response.choices[0]?.message?.content || "";
+      
+      if (!extractedText.trim()) {
+        throw new Error("No text could be extracted from the image");
+      }
+      
+      console.log(`Successfully extracted ${extractedText.length} characters from image using Vision API`);
+      return extractedText;
+    } catch (error) {
+      console.error("Error processing image with Vision API:", error);
+      throw new Error(`Failed to process image: ${error.message}`);
+    }
   }
 
   // Extract structured data from the document text using GPT-4o

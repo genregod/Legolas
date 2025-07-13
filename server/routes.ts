@@ -24,26 +24,34 @@ if (process.env.STRIPE_SECRET_KEY) {
   console.log('Stripe not initialized - missing STRIPE_SECRET_KEY. Payment features will be disabled.');
 }
 
-// Configure multer for file uploads
+// Configure multer for file uploads - accept ANY file type including images
 const upload = multer({
   dest: 'uploads/',
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 50 * 1024 * 1024, // 50MB limit to accommodate images
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.pdf', '.doc', '.docx'];
-    const fileExt = path.extname(file.originalname).toLowerCase();
-    if (allowedTypes.includes(fileExt)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only PDF, DOC, and DOCX files are allowed.'));
-    }
+    // Accept ANY file type - AI will determine what it is
+    cb(null, true);
   },
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
+
+  // Handle multer errors
+  const handleMulterError = (err: any, req: any, res: any, next: any) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ message: 'File too large. Maximum size is 10MB.' });
+      }
+      return res.status(400).json({ message: err.message });
+    } else if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+    next();
+  };
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -189,19 +197,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Document upload and processing
-  app.post('/api/documents/upload', isAuthenticated, upload.single('document'), async (req: any, res) => {
+  // Test endpoint for document upload
+  app.get('/api/test-document-creation', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const file = req.file;
+      
+      // Create a test document directly
+      const testDoc = await storage.createDocument({
+        userId,
+        fileName: 'test-document.pdf',
+        fileSize: 1000,
+        fileType: 'application/pdf',
+        filePath: 'test-path',
+        documentType: 'complaint',
+        ocrText: 'Test document content',
+        extractedData: {
+          documentType: 'complaint',
+          caseNumber: 'TEST-001',
+          court: 'Test Court',
+          plaintiff: 'Test Plaintiff',
+          defendant: 'Test Defendant',
+          responseDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        },
+        aiAnalysis: {
+          summary: 'Test analysis'
+        },
+        status: 'processed'
+      });
+      
+      res.json({ success: true, documentId: testDoc.id });
+    } catch (error) {
+      console.error('Test document creation error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Document upload and processing - accepts any field name
+  app.post('/api/documents/upload', isAuthenticated, upload.any(), handleMulterError, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const files = req.files as Express.Multer.File[];
+      const file = files && files.length > 0 ? files[0] : null;
+      
+      console.log('Upload request received:', { 
+        userId, 
+        filesCount: files?.length || 0,
+        file: file ? { filename: file.filename, originalname: file.originalname, mimetype: file.mimetype } : null 
+      });
       
       if (!file) {
+        console.error('No file in request. req.files:', req.files);
+        console.error('Request headers:', req.headers);
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       // Process document through AI pipeline
       const { document, extractedData, analysis } = await documentProcessor.processDocument(userId, file);
 
+      console.log('Document processed successfully:', { 
+        documentId: document.id, 
+        fileName: document.fileName,
+        documentType: document.documentType 
+      });
+      
       res.json({
         document,
         extractedData,
@@ -218,7 +276,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const documentId = parseInt(req.params.id);
+      
+      console.log('Process document request:', { documentId, userId });
+      
       const document = await storage.getDocument(documentId);
+      
+      console.log('Document lookup result:', { 
+        found: !!document, 
+        documentUserId: document?.userId,
+        requestUserId: userId,
+        match: document?.userId === userId 
+      });
       
       if (!document || document.userId !== userId) {
         return res.status(404).json({ message: "Document not found" });

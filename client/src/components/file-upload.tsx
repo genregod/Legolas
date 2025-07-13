@@ -42,8 +42,8 @@ export default function FileUpload({
   }, [onFileSelect]);
 
   const isValidFileType = (file: File) => {
-    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    return allowedTypes.includes(file.type);
+    // Accept any file type - AI will process it
+    return true;
   };
 
   const triggerFileInput = () => {
@@ -88,18 +88,18 @@ export default function FileUpload({
         <div className="mb-4">
           <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-900 mb-2">
-            Drag and drop your document here
+            Drag and drop any file here
           </h3>
           <p className="text-gray-600 mb-4">or click to browse files</p>
           <p className="text-sm text-gray-500">
-            Supports PDF, DOC, DOCX files up to 10MB
+            Accepts any file type - PDF, DOC, TXT, RTF, or even photos from your phone (up to 50MB)
           </p>
         </div>
         <input
           id="file-input"
           type="file"
           className="hidden"
-          accept=".pdf,.doc,.docx"
+          accept="*/*"
           onChange={handleFileInputChange}
         />
       </div>
