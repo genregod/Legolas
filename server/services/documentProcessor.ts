@@ -215,9 +215,13 @@ Important: If you cannot find specific information, set the field to null. Alway
       const defendantMatch = text.match(/v\.\s*([A-Z][A-Z\s]+),\s*Defendant/);
       const courtMatch = text.match(/(SUPERIOR COURT[^\n]+)/i);
       
+      // Classify document type using our comprehensive system
+      const documentType = this.classifyDocumentType(text);
+      
       // Merge AI extraction with regex results for best accuracy
       return {
         ...extractedData,
+        documentType: documentType, // Use our classification instead of AI's generic type
         caseNumber: extractedData.caseNumber || (caseNumberMatch ? caseNumberMatch[1] : `CV-${Date.now()}`),
         plaintiff: extractedData.plaintiff || (plaintiffMatch ? plaintiffMatch[1].trim() : "Unknown Plaintiff"),
         defendant: extractedData.defendant || (defendantMatch ? defendantMatch[1].trim() : "Unknown Defendant"),
