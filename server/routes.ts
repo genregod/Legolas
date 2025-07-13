@@ -8,6 +8,8 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertCaseSchema, insertDocumentSchema, insertAllegationSchema, insertAffirmativeDefenseSchema } from "@shared/schema";
 import { z } from "zod";
 import { documentProcessor } from "./services/documentProcessor";
+import { documentGenerator } from "./services/documentGenerator";
+import { WebSocketServer } from "ws";
 
 // Initialize Stripe only if keys are available
 let stripe: Stripe | null = null;
@@ -396,6 +398,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Document generation endpoint
+  app.post('/api/cases/:id/generate-document', isAuthenticated, async (req: any, res) => {
+    try {
+      const caseId = parseInt(req.params.id);
+      const { documentType, realtime } = req.body;
+      
+      // Verify case access
+      const case_data = await storage.getCase(caseId, req.user.claims.sub);
+      if (!case_data) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      // Generate document with progress updates
+      const { content, format } = await documentGenerator.generateDocument(
+        caseId,
+        documentType,
+        realtime ? (step) => {
+          // Send progress updates via WebSocket if realtime is enabled
+          const wsClients = (req.app as any).wsClients;
+          if (wsClients && wsClients.has(req.user.claims.sub)) {
+            wsClients.get(req.user.claims.sub).send(JSON.stringify({
+              type: 'generation-step',
+              step
+            }));
+          }
+        } : undefined
+      );
+
+      res.json({ content, format });
+    } catch (error) {
+      console.error("Error generating document:", error);
+      res.status(500).json({ message: "Failed to generate document" });
+    }
+  });
+
+  // Document export endpoint
+  app.post('/api/cases/:id/export-document', isAuthenticated, async (req: any, res) => {
+    try {
+      const caseId = parseInt(req.params.id);
+      const { format, content } = req.body;
+      
+      // Verify case access
+      const case_data = await storage.getCase(caseId, req.user.claims.sub);
+      if (!case_data) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      let buffer: Buffer;
+      if (format === 'pdf') {
+        buffer = await documentGenerator.exportToPDF(content, req.body.formatRules || {});
+      } else if (format === 'docx') {
+        buffer = await documentGenerator.exportToDOCX(content, req.body.formatRules || {});
+      } else {
+        return res.status(400).json({ message: "Invalid format" });
+      }
+
+      res.setHeader('Content-Type', format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', `attachment; filename="${case_data.caseNumber}-answer.${format}"`);
+      res.send(buffer);
+    } catch (error) {
+      console.error("Error exporting document:", error);
+      res.status(500).json({ message: "Failed to export document" });
+    }
+  });
+
+  // Case export endpoint
+  app.get('/api/cases/:id/export', isAuthenticated, async (req: any, res) => {
+    try {
+      const caseId = parseInt(req.params.id);
+      const case_data = await storage.getCase(caseId, req.user.claims.sub);
+      
+      if (!case_data) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      // Generate a comprehensive case report
+      const report = {
+        case: case_data,
+        documents: await storage.getDocuments(caseId),
+        allegations: await storage.getAllegations(caseId),
+        defenses: await storage.getAffirmativeDefenses(caseId),
+        timeline: await storage.getCaseTimeline(caseId),
+        generatedAt: new Date().toISOString()
+      };
+
+      // For now, return as JSON. In production, this would generate a PDF
+      res.json(report);
+    } catch (error) {
+      console.error("Error exporting case:", error);
+      res.status(500).json({ message: "Failed to export case" });
+    }
+  });
+
   const httpServer = createServer(app);
+  
+  // Set up WebSocket server for real-time document generation updates
+  const wss = new WebSocketServer({ server: httpServer, path: '/api/ws/document-generation' });
+  
+  // Store WebSocket clients by user ID
+  const wsClients = new Map();
+  (app as any).wsClients = wsClients;
+  
+  wss.on('connection', (ws, req) => {
+    // Extract user ID from session/auth
+    const userId = (req as any).session?.passport?.user?.claims?.sub;
+    
+    if (userId) {
+      wsClients.set(userId, ws);
+      
+      ws.on('close', () => {
+        wsClients.delete(userId);
+      });
+    }
+  });
+  
   return httpServer;
 }

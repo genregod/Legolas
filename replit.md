@@ -4,6 +4,21 @@
 
 ArnieAI is a comprehensive legal AI platform designed to democratize access to legal services through advanced AI-powered document processing and case management. The platform integrates GPT-4 technology for sophisticated legal reasoning, document analysis, and automated legal document generation. Built following Azure cloud architecture principles, the system provides enterprise-grade OCR, semantic search, and retrieval-augmented generation (RAG) capabilities for accurate legal analysis.
 
+## Recent Changes (January 13, 2025)
+
+### Document Generation System
+- Implemented AI-powered document generator with real-time progress tracking
+- Added WebSocket support for live generation updates
+- Created canvas-like interface with sliding chat panel
+- Integrated state/federal jurisdiction formatting detection
+- Added export functionality for PDF/DOCX formats
+- Dark mode support in document generator
+
+### API Integration
+- Successfully integrated OpenAI API for document generation
+- Added GPT-4o model support (newest model as of May 13, 2024)
+- Implemented jurisdiction-specific formatting rules
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
