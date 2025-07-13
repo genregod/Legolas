@@ -7,17 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, Edit, Download, Share, FileText, Brain, Shield, Clock, AlertCircle, BarChart, Calendar, ChevronRight } from "lucide-react";
+import { AlertTriangle, Edit, Download, Share, FileText, Brain, Shield, Clock, AlertCircle, BarChart, Calendar, ChevronRight, Search } from "lucide-react";
 import Navigation from "@/components/navigation";
 import CountdownTimer from "@/components/countdown-timer";
+import SearchDialog from "@/components/search-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
 export default function CaseDashboard() {
   const { id } = useParams();
   const { toast } = useToast();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const { data: case_data, isLoading, error } = useQuery({
     queryKey: ['/api/cases', id],
@@ -139,6 +141,10 @@ export default function CaseDashboard() {
               <Badge variant="outline" className="text-lg px-4 py-2">
                 {case_data.caseType}
               </Badge>
+              <Button variant="outline" onClick={() => setSearchOpen(true)}>
+                <Search className="h-4 w-4 mr-2" />
+                Search
+              </Button>
               <Button variant="outline" onClick={() => downloadCaseMutation.mutate()}>
                 <Download className="h-4 w-4 mr-2" />
                 Export
@@ -551,6 +557,9 @@ export default function CaseDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+      
+      {/* Search Dialog */}
+      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
 }

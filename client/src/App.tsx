@@ -49,15 +49,21 @@ function Router() {
   );
 }
 
+function AppContent() {
+  return (
+    <TooltipProvider>
+      <Elements stripe={stripePromise}>
+        <Toaster />
+        <Router />
+      </Elements>
+    </TooltipProvider>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Elements stripe={stripePromise}>
-          <Toaster />
-          <Router />
-        </Elements>
-      </TooltipProvider>
+      <AppContent />
     </QueryClientProvider>
   );
 }

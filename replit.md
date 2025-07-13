@@ -19,6 +19,25 @@ ArnieAI is a comprehensive legal AI platform designed to democratize access to l
 - Added GPT-4o model support (newest model as of May 13, 2024)
 - Implemented jurisdiction-specific formatting rules
 
+### Document Processing Enhancements
+- Added OCR capabilities using Tesseract.js for scanned documents
+- Enhanced document processor to handle images and PDFs
+- Implemented comprehensive text extraction pipeline
+
+### Semantic Search & Legal Research
+- Created semantic search service with OpenAI embeddings
+- Implemented intelligent document retrieval across cases
+- Added legal research service for case strategy and defense recommendations
+- Integrated search functionality with interactive UI dialog
+
+### API Endpoints Added
+- `/api/search` - Semantic search across all case content
+- `/api/cases/:id/similar` - Find similar cases using AI
+- `/api/legal-research` - Research legal topics with AI
+- `/api/cases/:id/defense-recommendations` - AI-powered defense suggestions
+- `/api/cases/:id/strategy` - Comprehensive case strategy generation
+- `/api/procedural-requirements` - Jurisdiction-specific filing requirements
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

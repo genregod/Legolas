@@ -2,102 +2,165 @@ import { type Document, type InsertDocument } from "@shared/schema";
 import { storage } from "../storage";
 import path from "path";
 import fs from "fs/promises";
+import OpenAI from "openai";
+import Tesseract from "tesseract.js";
+import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
+
+// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Document processing service that implements the blueprint's OCR and AI capabilities
 export class DocumentProcessor {
-  // Simulate OCR extraction - in production, this would use Azure AI Document Intelligence
+  // Enhanced OCR extraction with support for multiple file types
   async extractTextFromDocument(filePath: string): Promise<string> {
-    // Read file metadata for now
-    const stats = await fs.stat(filePath);
+    const fileExt = path.extname(filePath).toLowerCase();
+    let extractedText = "";
     
-    // In production, this would:
-    // 1. Use Azure AI Document Intelligence for OCR
-    // 2. Clean and structure the extracted text
-    // 3. Handle multi-page documents
-    
-    // Mock OCR result for development
-    return `EXTRACTED LEGAL DOCUMENT TEXT
-
-SUPERIOR COURT OF CALIFORNIA
-COUNTY OF LOS ANGELES
-
-Case No: CV-2024-001234
-
-ROBERT SMITH,
-Plaintiff,
-v.
-MICHAEL JOHNSON,
-Defendant.
-
-COMPLAINT FOR:
-1. BREACH OF CONTRACT
-2. NEGLIGENT MISREPRESENTATION
-3. UNJUST ENRICHMENT
-
-DEMAND FOR JURY TRIAL
-
-Plaintiff ROBERT SMITH alleges as follows:
-
-JURISDICTION AND VENUE
-1. This Court has jurisdiction over this matter pursuant to California Code of Civil Procedure § 410.10.
-2. Venue is proper in this Court pursuant to California Code of Civil Procedure § 395.
-
-PARTIES
-3. Plaintiff ROBERT SMITH is an individual residing in Los Angeles County, California.
-4. Defendant MICHAEL JOHNSON is an individual residing in Los Angeles County, California.
-
-GENERAL ALLEGATIONS
-5. On or about January 15, 2024, Plaintiff and Defendant entered into a written purchase agreement.
-6. Under the terms of the agreement, Defendant agreed to deliver specialized equipment to Plaintiff.
-7. Plaintiff paid Defendant the sum of $50,000 as consideration for the equipment.
-
-FIRST CAUSE OF ACTION - BREACH OF CONTRACT
-8. Plaintiff realleges and incorporates by reference paragraphs 1 through 7.
-9. Defendant breached the contract by failing to deliver the equipment as specified.
-10. As a direct and proximate result of Defendant's breach, Plaintiff has suffered damages.
-
-SECOND CAUSE OF ACTION - NEGLIGENT MISREPRESENTATION
-11. Plaintiff realleges and incorporates by reference paragraphs 1 through 10.
-12. Defendant negligently misrepresented the quality and specifications of the equipment.
-13. Plaintiff reasonably relied on Defendant's representations to his detriment.
-
-THIRD CAUSE OF ACTION - UNJUST ENRICHMENT
-14. Plaintiff realleges and incorporates by reference paragraphs 1 through 13.
-15. Defendant has been unjustly enriched by retaining Plaintiff's payment.
-16. It would be inequitable for Defendant to retain this benefit.
-
-PRAYER FOR RELIEF
-WHEREFORE, Plaintiff prays for judgment against Defendant as follows:
-1. For compensatory damages in the amount of $50,000;
-2. For consequential damages according to proof;
-3. For costs of suit incurred herein;
-4. For such other and further relief as the Court deems just and proper.
-
-Dated: February 15, 2024
-
-Respectfully submitted,
-LAW OFFICES OF JOHN DOE
-By: /s/ John Doe
-Attorney for Plaintiff`;
+    try {
+      switch (fileExt) {
+        case '.pdf':
+          // Extract text from PDF
+          const pdfBuffer = await fs.readFile(filePath);
+          const pdfData = await pdfParse(pdfBuffer);
+          extractedText = pdfData.text;
+          
+          // If PDF has no text (scanned document), use OCR
+          if (!extractedText.trim()) {
+            console.log("PDF appears to be scanned, using OCR...");
+            const { data: { text } } = await Tesseract.recognize(
+              filePath,
+              'eng',
+              {
+                logger: m => console.log(`OCR Progress: ${m.progress * 100}%`)
+              }
+            );
+            extractedText = text;
+          }
+          break;
+          
+        case '.doc':
+        case '.docx':
+          // Extract text from Word documents
+          const docBuffer = await fs.readFile(filePath);
+          const result = await mammoth.extractRawText({ buffer: docBuffer });
+          extractedText = result.value;
+          break;
+          
+        case '.png':
+        case '.jpg':
+        case '.jpeg':
+          // Use OCR for image files
+          const { data: { text } } = await Tesseract.recognize(
+            filePath,
+            'eng',
+            {
+              logger: m => console.log(`OCR Progress: ${m.progress * 100}%`)
+            }
+          );
+          extractedText = text;
+          break;
+          
+        default:
+          // Try to read as plain text
+          extractedText = await fs.readFile(filePath, 'utf-8');
+      }
+      
+      // Clean and normalize the extracted text
+      extractedText = this.cleanExtractedText(extractedText);
+      
+      // If we still don't have text, throw an error
+      if (!extractedText.trim()) {
+        throw new Error("No text could be extracted from the document");
+      }
+      
+      return extractedText;
+    } catch (error) {
+      console.error("Error extracting text from document:", error);
+      throw new Error(`Failed to extract text from document: ${error.message}`);
+    }
+  }
+  
+  // Clean and normalize extracted text
+  private cleanExtractedText(text: string): string {
+    return text
+      .replace(/\r\n/g, '\n') // Normalize line endings
+      .replace(/\n{3,}/g, '\n\n') // Remove excessive line breaks
+      .replace(/\s{2,}/g, ' ') // Replace multiple spaces with single space
+      .replace(/[^\x20-\x7E\n]/g, '') // Remove non-printable characters
+      .trim();
   }
 
-  // Extract structured data from the document text
+  // Extract structured data from the document text using GPT-4o
   async extractStructuredData(text: string): Promise<any> {
-    // In production, this would use GPT-4 via Azure OpenAI to extract:
-    // - Case parties
-    // - Case number
-    // - Court information
-    // - Filing dates
-    // - Causes of action
-    // - Key allegations
-    // - Monetary amounts
-    // - Important dates
-    
-    // Parse the document text to extract key information
+    try {
+      const prompt = `Analyze the following legal document and extract structured information in JSON format:
+
+Document Text:
+${text.substring(0, 4000)} // Limit to prevent token overflow
+
+Extract the following information:
+1. Case number
+2. Court name
+3. Plaintiff name(s)
+4. Defendant name(s)
+5. Filing date
+6. Response deadline (if mentioned)
+7. Document type (complaint, answer, motion, etc.)
+8. Causes of action or claims
+9. Key allegations (list up to 10 main points)
+10. Monetary amounts mentioned
+11. Important dates
+12. Legal representatives (attorneys)
+
+Return the data as a JSON object with these fields.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are a legal document analysis expert. Extract structured information from legal documents accurately and comprehensively."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+        max_tokens: 1500
+      });
+
+      const extractedData = JSON.parse(response.choices[0].message.content || "{}");
+      
+      // Enhance with additional regex parsing for accuracy
+      const caseNumberMatch = text.match(/Case No[:\s]+([A-Z0-9-]+)/i);
+      const plaintiffMatch = text.match(/([A-Z][A-Z\s]+),\s*Plaintiff/);
+      const defendantMatch = text.match(/v\.\s*([A-Z][A-Z\s]+),\s*Defendant/);
+      const courtMatch = text.match(/(SUPERIOR COURT[^\n]+)/i);
+      
+      // Merge AI extraction with regex results for best accuracy
+      return {
+        ...extractedData,
+        caseNumber: extractedData.caseNumber || (caseNumberMatch ? caseNumberMatch[1] : `CV-${Date.now()}`),
+        plaintiff: extractedData.plaintiff || (plaintiffMatch ? plaintiffMatch[1].trim() : "Unknown Plaintiff"),
+        defendant: extractedData.defendant || (defendantMatch ? defendantMatch[1].trim() : "Unknown Defendant"),
+        court: extractedData.court || (courtMatch ? courtMatch[1].trim() : "Superior Court"),
+      };
+    } catch (error) {
+      console.error("Error extracting structured data:", error);
+      // Fallback to basic regex extraction
+      return this.basicTextExtraction(text);
+    }
+  }
+  
+  // Basic text extraction as fallback
+  private basicTextExtraction(text: string): any {
     const caseNumberMatch = text.match(/Case No[:\s]+([A-Z0-9-]+)/i);
-    const plaintiffMatch = text.match(/([A-Z\s]+),\s*Plaintiff/);
-    const defendantMatch = text.match(/v\.\s*([A-Z\s]+),\s*Defendant/);
-    const courtMatch = text.match(/(SUPERIOR COURT[^\\n]+)/i);
+    const plaintiffMatch = text.match(/([A-Z][A-Z\s]+),\s*Plaintiff/);
+    const defendantMatch = text.match(/v\.\s*([A-Z][A-Z\s]+),\s*Defendant/);
+    const courtMatch = text.match(/(SUPERIOR COURT[^\n]+)/i);
     
     // Extract allegations from numbered paragraphs
     const allegations = [];
@@ -172,87 +235,61 @@ Attorney for Plaintiff`;
 
   // Generate AI-powered legal analysis
   async generateLegalAnalysis(extractedData: any): Promise<any> {
-    // In production, this would use GPT-4 to:
-    // 1. Analyze the strength of each allegation
-    // 2. Suggest relevant affirmative defenses
-    // 3. Identify key legal issues
-    // 4. Recommend strategy
-    // 5. Generate timeline of important dates
-    
-    const analysis = {
-      summary: `This is a ${extractedData.documentType} filed in ${extractedData.court} involving ${extractedData.causesOfAction.length} causes of action. The plaintiff seeks damages of $${extractedData.damageAmount || 'unspecified amount'}.`,
+    try {
+      const prompt = `Analyze this legal case and provide strategic recommendations:
       
-      keyIssues: [
-        "Contract formation and terms need to be verified",
-        "Evidence of delivery or non-delivery will be crucial",
-        "Statute of limitations must be checked for each cause of action",
-        "Potential counterclaims should be evaluated"
-      ],
+      Case: ${extractedData.plaintiff} v. ${extractedData.defendant}
+      Court: ${extractedData.court}
+      Document Type: ${extractedData.documentType}
+      Causes of Action: ${JSON.stringify(extractedData.causesOfAction || [])}
+      Key Allegations: ${JSON.stringify(extractedData.keyAllegations || [])}
       
-      suggestedDefenses: [
-        {
-          defenseType: "statute_of_limitations",
-          defenseTitle: "Statute of Limitations",
-          defenseDescription: "The plaintiff's claims may be barred by the applicable statute of limitations",
-          strength: "medium",
-          legalBasis: "Cal. Code Civ. Proc. § 337 (4 years for written contracts)"
-        },
-        {
-          defenseType: "failure_to_state_claim",
-          defenseTitle: "Failure to State a Claim",
-          defenseDescription: "The complaint may fail to state facts sufficient to constitute a valid legal claim",
-          strength: "low",
-          legalBasis: "Cal. Code Civ. Proc. § 430.10(e)"
-        },
-        {
-          defenseType: "performance",
-          defenseTitle: "Performance",
-          defenseDescription: "Defendant may have substantially performed under the contract",
-          strength: "high",
-          legalBasis: "Common law contract defense"
-        },
-        {
-          defenseType: "waiver",
-          defenseTitle: "Waiver",
-          defenseDescription: "Plaintiff may have waived their right to bring this claim through conduct or agreement",
-          strength: "low",
-          legalBasis: "Civil Code § 1541"
-        }
-      ],
+      Provide analysis including:
+      1. Case strength assessment (1-10 scale)
+      2. Key legal issues
+      3. Recommended affirmative defenses
+      4. Strategic recommendations
+      5. Risk assessment
+      6. Timeline considerations
       
-      nextSteps: [
-        {
-          action: "File Answer",
-          deadline: extractedData.responseDeadline,
-          priority: "critical",
-          description: "Must file answer within 30 days to avoid default judgment"
-        },
-        {
-          action: "Gather Evidence",
-          deadline: null,
-          priority: "high",
-          description: "Collect all contracts, communications, and delivery records"
-        },
-        {
-          action: "Consider Demurrer",
-          deadline: extractedData.responseDeadline,
-          priority: "medium",
-          description: "Evaluate whether to file demurrer instead of answer"
-        }
-      ],
+      Return as JSON with these fields.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are an experienced legal strategist. Provide thorough analysis and practical recommendations for legal cases."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+        max_tokens: 1000
+      });
+
+      const aiAnalysis = JSON.parse(response.choices[0].message.content || "{}");
       
-      riskAssessment: {
-        overallRisk: "medium",
-        factors: [
-          "Written contract exists which favors plaintiff",
-          "Amount in controversy is significant ($50,000)",
-          "Negligent misrepresentation claim may be difficult to prove",
-          "Unjust enrichment is an equitable remedy that depends on other claims"
-        ]
-      }
-    };
-    
-    return analysis;
+      return {
+        ...aiAnalysis,
+        summary: `This is a ${extractedData.documentType} filed in ${extractedData.court} involving ${extractedData.causesOfAction?.length || 0} causes of action.`,
+        responseDeadline: extractedData.responseDeadline,
+        generatedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error("Error generating legal analysis:", error);
+      // Fallback analysis
+      return {
+        summary: `This is a ${extractedData.documentType} filed in ${extractedData.court}.`,
+        keyIssues: ["Unable to generate AI analysis", "Manual review recommended"],
+        suggestedDefenses: [],
+        riskAssessment: { overallRisk: "unknown", factors: ["AI analysis unavailable"] },
+        responseDeadline: extractedData.responseDeadline
+      };
+    }
   }
 
   // Process a document through the full pipeline
