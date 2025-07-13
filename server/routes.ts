@@ -28,7 +28,7 @@ if (process.env.STRIPE_SECRET_KEY) {
 const upload = multer({
   dest: 'uploads/',
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit to accommodate images
+    fileSize: 250 * 1024 * 1024, // 250MB limit for batch uploads
   },
   fileFilter: (req, file, cb) => {
     // Accept ANY file type - AI will determine what it is

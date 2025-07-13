@@ -18,6 +18,7 @@ import DocumentPreview from "@/pages/document-preview";
 import FilingInstructions from "@/pages/filing-instructions";
 import Subscribe from "@/pages/subscribe";
 import DocumentGenerator from "@/pages/document-generator";
+import BatchUpload from "@/pages/batch-upload";
 import NotFound from "@/pages/not-found";
 
 // Make sure to call `loadStripe` outside of a component's render to avoid
@@ -36,6 +37,7 @@ function Router() {
           <Route path="/" component={Dashboard} />
           <Route path="/subscribe" component={Subscribe} />
           <Route path="/document-upload" component={DocumentUpload} />
+          <Route path="/batch-upload" component={BatchUpload} />
           <Route path="/case/:id" component={CaseDashboard} />
           <Route path="/case/:id/draft-answer" component={DraftAnswer} />
           <Route path="/case/:id/affirmative-defenses" component={AffirmativeDefenses} />

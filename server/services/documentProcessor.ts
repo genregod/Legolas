@@ -169,26 +169,41 @@ Start extracting now and provide the COMPLETE text:`
         return this.basicTextExtraction(text);
       }
 
-      const prompt = `Analyze the following legal document and extract structured information in JSON format:
+      const prompt = `Analyze the following legal document and extract comprehensive structured information in JSON format:
 
 Document Text:
 ${text.substring(0, 8000)} // Increased limit for better analysis
 
-Extract the following information:
+Extract ALL of the following information:
 1. Case number
-2. Court name  
-3. Plaintiff name(s)
-4. Defendant name(s)
-5. Filing date
-6. Response deadline (if mentioned)
-7. Document type (complaint, answer, motion, etc.)
-8. Causes of action or claims
-9. Key allegations (list up to 10 main points)
-10. Monetary amounts mentioned
-11. Important dates
-12. Legal representatives (attorneys)
+2. Court name (full name including district/division)
+3. Jurisdiction (federal/state/local)
+4. Venue (geographic location/county/district)
+5. Document type (be specific: complaint, motion to dismiss, search warrant, etc.)
+6. Subject matter (what the case/document is about)
+7. Plaintiff/Petitioner name(s) (if applicable)
+8. Defendant/Respondent name(s) (if applicable)
+9. Other parties (intervenors, third-parties, witnesses, etc.)
+10. Filing date
+11. Response deadline (if mentioned)
+12. Judge/Magistrate name
+13. Causes of action or claims (list all)
+14. Key allegations or facts (list up to 10 main points)
+15. Relief sought (what the filing party wants)
+16. Monetary amounts mentioned
+17. Important dates and deadlines
+18. Legal representatives (attorneys for each party)
+19. Case status (if mentioned)
+20. Special requirements or orders
 
-Important: If you cannot find specific information, set the field to null. Always return valid JSON.`;
+For warrants specifically, also extract:
+- Target person/location/property
+- Items to be searched/seized
+- Probable cause summary
+- Issuing judge/magistrate
+- Execution deadline
+
+Important: Extract as much information as possible. If you cannot find specific information, set the field to null. Always return valid JSON.`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -242,18 +257,37 @@ Important: If you cannot find specific information, set the field to null. Alway
     if (documentType.includes('warrant') || documentType.includes('writ')) {
       const caseNumberMatch = text.match(/Case\s*(?:No\.?|Number)[\s:]*([A-Z0-9-]+)/i);
       const courtMatch = text.match(/(?:IN THE|DISTRICT COURT|SUPERIOR COURT|STATE OF|COURT OF)[\s]*([^\n]+)/i);
+      const countyMatch = text.match(/(?:COUNTY OF|County of)\s*([^\n,)]+)/i);
+      const stateMatch = text.match(/(?:STATE OF|State of)\s*([^\n,)]+)/i);
       const addressMatch = text.match(/(?:residence|located|property|premises).*?(?:at|located at)\s*([^\n]+)/i);
+      const judgeMatch = text.match(/(?:Judge|Magistrate|Hon\.|Honorable)\s*([^\n,]+)/i);
+      const targetMatch = text.match(/(?:against|for|to search)\s*([^\n]+)/i);
+      
+      // Determine jurisdiction
+      let jurisdiction = 'state';
+      if (text.toLowerCase().includes('united states') || text.toLowerCase().includes('federal')) {
+        jurisdiction = 'federal';
+      } else if (text.toLowerCase().includes('municipal') || text.toLowerCase().includes('city of')) {
+        jurisdiction = 'local';
+      }
       
       return {
         documentType: documentType,
         caseNumber: caseNumberMatch ? caseNumberMatch[1] : "Not specified",
         court: courtMatch ? courtMatch[1].trim() : "Unknown Court",
+        jurisdiction: jurisdiction,
+        venue: countyMatch ? countyMatch[1].trim() : (stateMatch ? stateMatch[1].trim() : null),
+        subjectMatter: `${documentType.replace(/_/g, ' ')} - ${targetMatch ? targetMatch[1].trim() : 'Law enforcement action'}`,
+        targetPerson: targetMatch ? targetMatch[1].trim() : null,
         targetAddress: addressMatch ? addressMatch[1].trim() : null,
         searchItems: documentType === 'search_warrant' ? this.extractSearchItems(text) : null,
         issuedDate: new Date().toISOString().split('T')[0],
+        issuingJudge: judgeMatch ? judgeMatch[1].trim() : null,
         plaintiff: null,
         defendant: null,
+        otherParties: null,
         responseDeadline: null,
+        reliefSought: documentType === 'search_warrant' ? 'Authority to search premises and seize evidence' : 'Court-ordered action',
       };
     }
     
@@ -262,16 +296,36 @@ Important: If you cannot find specific information, set the field to null. Alway
       const caseNumberMatch = text.match(/Case\s*(?:No\.?|Number)[\s:]*([A-Z0-9-]+)/i);
       const deponentMatch = text.match(/(?:Deposition of|Deponent:)\s*([^\n]+)/i);
       const dateMatch = text.match(/(?:Date:|Taken on)\s*([^\n]+)/i);
+      const plaintiffMatch = text.match(/(?:Plaintiff|Petitioner)[s]?[\s:]*([^v\n]+?)(?:\s*v\.?|\n)/i);
+      const defendantMatch = text.match(/(?:v\.?\s+|Defendant|Respondent)[s]?[\s:]*([^\n]+)/i);
+      const courtMatch = text.match(/(?:IN THE|COURT:|Court of)[\s]*([^\n]+)/i);
+      const attorneyMatches = text.matchAll(/(?:Taken by|Attorney|Counsel)[:\s]*([^\n]+)/gi);
+      
+      // Extract attorneys
+      const attorneys = [];
+      for (const match of attorneyMatches) {
+        attorneys.push(match[1].trim());
+      }
       
       return {
         documentType: documentType,
         caseNumber: caseNumberMatch ? caseNumberMatch[1] : null,
+        court: courtMatch ? courtMatch[1].trim() : "Discovery Document",
+        jurisdiction: 'state', // Most discovery is state-level
+        venue: null,
+        subjectMatter: `Discovery document - ${documentType.replace(/_/g, ' ')}`,
+        
+        // Parties
+        plaintiff: plaintiffMatch ? plaintiffMatch[1].trim() : null,
+        defendant: defendantMatch ? defendantMatch[1].trim() : null,
         deponent: deponentMatch ? deponentMatch[1].trim() : null,
+        otherParties: deponentMatch ? deponentMatch[1].trim() : null,
+        
+        // Discovery details
         depositionDate: dateMatch ? dateMatch[1].trim() : null,
-        plaintiff: null,
-        defendant: null,
-        court: "Discovery Document",
+        filingDate: new Date().toISOString().split('T')[0],
         responseDeadline: null,
+        legalRepresentatives: attorneys,
       };
     }
     
@@ -299,11 +353,23 @@ Important: If you cannot find specific information, set the field to null. Alway
     const caseNumberMatch = text.match(/Case No[:\s]+([A-Z0-9-]+)/i);
     const plaintiffMatch = text.match(/([A-Z][A-Z\s]+),\s*Plaintiff/);
     const defendantMatch = text.match(/v\.\s*([A-Z][A-Z\s]+),\s*Defendant/);
-    const courtMatch = text.match(/(SUPERIOR COURT[^\n]+)/i);
+    const courtMatch = text.match(/(SUPERIOR COURT[^\n]+|DISTRICT COURT[^\n]+|CIRCUIT COURT[^\n]+)/i);
+    const countyMatch = text.match(/(?:COUNTY OF|County of|for the County of)\s*([^\n,)]+)/i);
+    const stateMatch = text.match(/(?:STATE OF|State of)\s*([^\n,)]+)/i);
+    const judgeMatch = text.match(/(?:Judge|Hon\.|Honorable)\s*([^\n,]+)/i);
+    const attorneyMatches = text.matchAll(/(?:Attorney for|Counsel for|Representing)\s*(?:Plaintiff|Defendant)[:\s]*([^\n]+)/gi);
+    
+    // Determine jurisdiction
+    let jurisdiction = 'state';
+    if (text.toLowerCase().includes('united states') || text.toLowerCase().includes('federal')) {
+      jurisdiction = 'federal';
+    } else if (text.toLowerCase().includes('municipal') || text.toLowerCase().includes('city of')) {
+      jurisdiction = 'local';
+    }
     
     // Extract allegations from numbered paragraphs
     const allegations = [];
-    const allegationMatches = text.matchAll(/\d+\.\s*([^.]+(?:breach|fail|negligen|misrepresent|enrich)[^.]+\.)/gi);
+    const allegationMatches = text.matchAll(/\d+\.\s*([^.]+(?:breach|fail|negligen|misrepresent|enrich|violat|damage|harm|injur)[^.]+\.)/gi);
     for (const match of allegationMatches) {
       if (match[1].length > 20 && match[1].length < 500) {
         allegations.push(match[1].trim());
@@ -314,22 +380,59 @@ Important: If you cannot find specific information, set the field to null. Alway
     const amountMatch = text.match(/\$([0-9,]+)/);
     const amount = amountMatch ? amountMatch[1].replace(/,/g, '') : null;
     
+    // Extract attorneys
+    const attorneys = {};
+    for (const match of attorneyMatches) {
+      if (match[0].toLowerCase().includes('plaintiff')) {
+        attorneys.plaintiffAttorney = match[1].trim();
+      } else if (match[0].toLowerCase().includes('defendant')) {
+        attorneys.defendantAttorney = match[1].trim();
+      }
+    }
+    
+    // Extract relief sought
+    const reliefMatch = text.match(/(?:WHEREFORE|PRAYER FOR RELIEF|seeks|requests)[:\s]*([^.]+\.)/i);
+    const reliefSought = reliefMatch ? reliefMatch[1].trim() : 'Damages and other relief as the court deems proper';
+    
+    // Extract subject matter
+    const causesOfAction = this.extractCausesOfAction(text);
+    const subjectMatter = causesOfAction.length > 0 
+      ? `Civil action involving ${causesOfAction.join(', ')}`
+      : `Civil litigation - ${documentType}`;
+    
     // Calculate response deadline (30 days from today for demo)
     const today = new Date();
     const responseDeadline = new Date(today);
     responseDeadline.setDate(responseDeadline.getDate() + 30);
     
     return {
+      // Core document info
+      documentType: documentType,
       caseNumber: caseNumberMatch ? caseNumberMatch[1] : null,
+      court: courtMatch ? courtMatch[1].trim() : "Unknown Court",
+      jurisdiction: jurisdiction,
+      venue: countyMatch ? countyMatch[1].trim() : (stateMatch ? stateMatch[1].trim() : null),
+      subjectMatter: subjectMatter,
+      
+      // Parties
       plaintiff: plaintiffMatch ? plaintiffMatch[1].trim() : null,
       defendant: defendantMatch ? defendantMatch[1].trim() : null,
-      court: courtMatch ? courtMatch[1].trim() : "Unknown Court",
+      otherParties: null,
+      judge: judgeMatch ? judgeMatch[1].trim() : null,
+      
+      // Case details
       filingDate: today.toISOString().split('T')[0],
       responseDeadline: responseDeadline.toISOString().split('T')[0],
-      documentType: documentType,
-      allegations: allegations.slice(0, 5),
+      allegations: allegations.slice(0, 10), // Up to 10 key allegations
       damageAmount: amount ? parseInt(amount) : null,
-      causesOfAction: this.extractCausesOfAction(text),
+      causesOfAction: causesOfAction,
+      keyAllegations: allegations,
+      reliefSought: reliefSought,
+      
+      // Additional info
+      legalRepresentatives: attorneys,
+      caseStatus: 'Active - Response pending',
+      monetaryAmounts: amount,
     };
   }
   
