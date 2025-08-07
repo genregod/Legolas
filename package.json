@@ -11,8 +11,17 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@azure/ai-text-analytics": "^5.1.0",
+    "@azure/cosmos": "^4.4.1",
+    "@azure/identity": "^4.10.2",
+    "@azure/msal-common": "^15.8.1",
+    "@azure/msal-node": "^3.6.3",
+    "@azure/openai": "^2.0.0",
+    "@azure/search-documents": "^12.1.0",
+    "@azure/storage-blob": "^12.27.0",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
+    "@modelcontextprotocol/sdk": "^1.15.1",
     "@neondatabase/serverless": "^0.10.4",
     "@radix-ui/react-accordion": "^1.2.4",
     "@radix-ui/react-alert-dialog": "^1.1.7",

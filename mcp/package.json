@@ -1,0 +1,23 @@
+{
+  "name": "azure-mcp-server",
+  "version": "0.1.0",
+  "description": "Azure Model Context Protocol Server",
+  "type": "module",
+  "main": "dist/azure-mcp-server.js",
+  "bin": {
+    "azure-mcp-server": "dist/azure-mcp-server.js"
+  },
+  "scripts": {
+    "build": "esbuild azure-mcp-server.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:@modelcontextprotocol/sdk",
+    "start": "node dist/azure-mcp-server.js"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.4.1",
+    "@azure/storage-blob": "^12.24.0",
+    "@azure/cosmos": "^4.2.0",
+    "@azure/search-documents": "^12.1.0",
+    "@azure/openai": "^2.0.0",
+    "@azure/ai-text-analytics": "^6.1.0",
+    "@modelcontextprotocol/sdk": "^1.0.6"
+  }
+}
